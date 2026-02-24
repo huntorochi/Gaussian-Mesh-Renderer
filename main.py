@@ -13,6 +13,8 @@ import torch
 import math
 from pytorch3d.structures import Meshes
 from torch import nn
+import json
+from pytorch3d.utils import ico_sphere
 
 from pytorch3d.loss import (
     mesh_edge_loss,
@@ -21,8 +23,21 @@ from pytorch3d.loss import (
 )
 
 from pytorch3d.ops.subdivide_meshes import SubdivideMeshes
+import struct
 
 from gsplat import rasterization
+import trimesh
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
+
+from pytorch3d.renderer import (
+    TexturesVertex,
+)
+import cv2
+import time
+from tqdm import tqdm
+import gc
+import re
 
 CameraModel = collections.namedtuple(
     "CameraModel", ["model_id", "model_name", "num_params"])
@@ -340,7 +355,6 @@ def get_camera_center(world2cam: torch.Tensor) -> torch.Tensor:
     return c
 
 
-from pytorch3d.utils import ico_sphere
 
 
 def create_sphere_mesh(
@@ -386,18 +400,6 @@ def create_sphere_mesh(
     sphere_mesh.textures = TexturesVertex(verts_features=color_per_vert)
 
     return sphere_mesh
-
-
-# 1. 收集变换后的所有 Mesh
-
-from pytorch3d.renderer import SoftPhongShader
-
-class CustomShader(SoftPhongShader):
-    def forward(self, fragments, meshes, **kwargs):
-        colors = super().forward(fragments, meshes, **kwargs)  # 计算RGB
-        depth_map = fragments.zbuf[..., 0]  # 计算深度
-        return colors, depth_map  # 同时返回 RGB 和 Depth
-
 
 def fov2focal(fov, pixels):
     return pixels / (2 * math.tan(fov / 2))
@@ -504,7 +506,6 @@ def read_blender(root_path, resize_ratio=1.0):
     return poses, colmap_camera, img_list, image4_path
 
 def read_nerf(root_path, resize_ratio=1.0):
-    import json
     json_path = os.path.join(root_path, 'transforms_train.json')
 
     with open(json_path, 'r') as f:
@@ -608,7 +609,6 @@ def read_extrinsics_text(path):
                     xys=xys, point3D_ids=point3D_ids)
     return images
 
-import struct
 CAMERA_MODELS = {
     CameraModel(model_id=0, model_name="SIMPLE_PINHOLE", num_params=3),
     CameraModel(model_id=1, model_name="PINHOLE", num_params=4),
@@ -1416,7 +1416,6 @@ def calculate_geometric_subdivide_epochs(total_epochs, num_subdivide, ratio=2 / 
 
     return subdivide_epochs, front_epochs
 
-import re
 def get_next_test_name(father_path, prefix):
     """
     自动检测父路径下是否有符合前缀的目录，自动编号生成下一个可用名称。
@@ -1442,18 +1441,7 @@ def get_next_test_name(father_path, prefix):
     return new_test_name, full_path
 #######################################
 if __name__ == "__main__":
-    import os
-    import trimesh
-    import matplotlib.pyplot as plt
-    import torch.nn.functional as F
 
-    from pytorch3d.renderer import (
-        TexturesVertex,
-    )
-    import cv2
-    import time
-    from tqdm import tqdm
-    import gc
 
 
     original_path = rf".\github_cache"
